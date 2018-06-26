@@ -81,20 +81,24 @@ def test_get_default_config():
 # do_actions {{{1
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    'push_scope,dry_run,push_expect_called',
+    'push_scope,dry_run,push_expect_called,verify_expect_called',
     (
-        (['foo:bar:push'], True, False),
-        (['foo:bar:push'], False, True),
-        ([], False, False),
-        ([], True, False),
+        (['push'], True, False, False),
+        (['push'], False, True, False),
+        (['push', 'verify_bump'], True, False, False),
+        (['push', 'verify_bump'], False, True, True),
+        ([], False, False, False),
+        ([], True, False, False),
     )
 )
-async def test_do_actions(mocker, context, push_scope, dry_run, push_expect_called):
-    actions = ["foo:bar:tagging", "foo:bar:version_bump"]
+async def test_do_actions(mocker, context, push_scope, dry_run, push_expect_called, verify_expect_called):
+    actions = ["tagging", "version_bump"]
     actions += push_scope
     called_tag = [False]
     called_bump = [False]
     called_push = [False]
+    called_checkout = [False]
+    called_verify = [False]
 
     async def mocked_tag(*args, **kwargs):
         called_tag[0] = True
@@ -105,15 +109,24 @@ async def test_do_actions(mocker, context, push_scope, dry_run, push_expect_call
     async def mocked_push(*args, **kwargs):
         called_push[0] = True
 
+    async def mocked_checkout_repo(context, directory):
+        called_checkout[0] = True
+
+    async def mocked_verify(*args, **kwargs):
+        called_verify[0] = True
+
     mocker.patch.object(script, 'do_tagging', new=mocked_tag)
     mocker.patch.object(script, 'bump_version', new=mocked_bump)
     mocker.patch.object(script, 'push', new=mocked_push)
+    mocker.patch.object(script, 'checkout_repo', new=mocked_checkout_repo)
+    mocker.patch.object(script, 'verify_bump', new=mocked_verify)
     mocker.patch.object(script, 'log_outgoing', new=noop_async)
     mocker.patch.object(script, 'is_dry_run').return_value = dry_run
     await script.do_actions(context, actions, directory='/some/folder/here')
     assert called_tag[0]
     assert called_bump[0]
     assert called_push[0] is push_expect_called
+    assert called_verify[0] is verify_expect_called
 
 
 @pytest.mark.asyncio

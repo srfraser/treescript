@@ -9,7 +9,7 @@ from scriptworker.exceptions import ScriptWorkerException
 from treescript.utils import task_action_types, is_dry_run
 from treescript.mercurial import log_mercurial_version, validate_robustcheckout_works, \
     checkout_repo, do_tagging, log_outgoing, push
-from treescript.versionmanip import bump_version
+from treescript.versionmanip import bump_version, verify_bump
 
 log = logging.getLogger(__name__)
 
@@ -19,22 +19,26 @@ async def do_actions(context, actions, directory):
 
     The actions happen in order, tagging, ver bump, then push
     """
-    short_actions = [a.rsplit(':', 1)[1] for a in actions]
-    short_actions.sort()  # Order we want to run in, just happens to be alphabetical sort.
-    for action in short_actions:
+    actions.sort()  # Order we want to run in, just happens to be alphabetical sort.
+    for action in actions:
         if 'tagging' == action:
             await do_tagging(context, directory)
         elif 'version_bump' == action:
             await bump_version(context)
         elif 'push' == action:
             pass  # handled after log_outgoing
+        elif 'verify_bump' == action:
+            pass  # handled after push, to ensure remote existence.
         else:
             raise NotImplementedError("Unexpected action")
     await log_outgoing(context, directory)
     if is_dry_run(context.task):
         log.info("Not pushing changes, dry_run was forced")
-    elif 'push' in short_actions:
+    elif 'push' in actions:
         await push(context)
+        if 'verify_bump' in actions:
+            await checkout_repo(context, directory)  # Ensure remote has been copied down.
+            await verify_bump(context)
     else:
         log.info("Not pushing changes, lacking scopes")
 

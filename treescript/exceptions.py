@@ -29,3 +29,17 @@ class FailedSubprocess(ScriptWorkerTaskException):
         super(FailedSubprocess, self).__init__(
             msg, exit_code=STATUSES['internal-error']
         )
+
+
+class BumpVerificationError(ScriptWorkerTaskException):
+    """Something went wrong with a version bump."""
+
+    def __init__(self, msg):
+        """Initialize BumpVerificationError.
+
+        Args:
+            msg (str): the reason for throwing an exception.
+        """
+        super(BumpVerificationError, self).__init__(
+            msg, exit_code=STATUSES['internal-error']
+        )

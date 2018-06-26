@@ -5,7 +5,7 @@ from distutils.version import StrictVersion, LooseVersion
 import logging
 import os
 
-from treescript.exceptions import TaskVerificationError
+from treescript.exceptions import TaskVerificationError, BumpVerificationError
 from treescript.mercurial import run_hg_command
 from treescript.task import get_version_bump_info
 
@@ -84,6 +84,10 @@ async def bump_version(context):
                     next_version = next_version + 'esr'
             replace_ver_in_file(file=abs_file,
                                 curr_version=curr_version, new_version=next_version)
+            verify_version = _get_version(abs_file)
+            if Comparator(verify_version) != Comparator(next_version):
+                log.error("Version bump failed! Intended %s, actual: %s in %s", next_version, verify_version, abs_file)
+                raise BumpVerificationError("Version bump failed! Intended {}, actual: {} in {}".format(next_version, verify_version, abs_file))
     if changed:
         commit_msg = 'Automatic version bump CLOSED TREE NO BUG a=release'
         await run_hg_command(context, 'commit', '-m', commit_msg,
@@ -107,3 +111,25 @@ def replace_ver_in_file(file, curr_version, new_version):
         raise Exception("Did not expect no changes")
     with open(file, 'w') as f:
         f.write(new_contents)
+
+
+async def verify_bump(context):
+    """Verify that a version bump has been applied."""
+    bump_info = get_version_bump_info(context.task)
+    next_version = bump_info['next_version']
+    files = bump_info['files']
+    for file in files:
+        abs_file = os.path.join(context.repo, file)
+        if file not in ALLOWED_BUMP_FILES:
+            raise TaskVerificationError("Specified file to version bump is not in whitelist")
+        if not os.path.exists(abs_file):
+            raise TaskVerificationError("Specified file is not in repo")
+        curr_version = _get_version(abs_file)
+
+        Comparator = StrictVersion
+        if curr_version.endswith('esr') or next_version.endswith('esr'):
+            #  We use LooseVersion for ESR because StrictVersion can't parse the trailing
+            # 'esr', but StrictVersion otherwise because it can sort X.0bN lower than X.0
+            Comparator = LooseVersion
+        if Comparator(curr_version) != Comparator(next_version):
+            raise BumpVerificationError("Version bump failed! Intended {}, actual: {} in {}".format(next_version, curr_version, abs_file))

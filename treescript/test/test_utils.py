@@ -9,9 +9,9 @@ from treescript.exceptions import TaskVerificationError, FailedSubprocess
 
 assert tmpdir  # silence flake8
 
-TEST_ACTION_TAG = 'project:releng:treescript:action:tagging'
-TEST_ACTION_BUMP = 'project:releng:treescript:action:version_bump'
-TEST_ACTION_INVALID = 'project:releng:treescript:action:invalid'
+TEST_ACTION_TAG = 'tagging'
+TEST_ACTION_BUMP = 'version_bump'
+TEST_ACTION_INVALID = 'invalid'
 
 
 # mkdir {{{1
@@ -44,7 +44,7 @@ def test_mkdir_mutes_os_errors(mocker):
     'scopes', ([TEST_ACTION_TAG], [TEST_ACTION_BUMP], [TEST_ACTION_TAG, TEST_ACTION_BUMP])
 )
 def test_task_action_types_valid_scopes(scopes):
-    task = {"scopes": scopes}
+    task = {"scopes": ["project:releng:treescript:action:{}".format(s) for s in scopes]}
     assert tuple(scopes) == utils.task_action_types(task)
 
 
